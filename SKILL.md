@@ -4,27 +4,31 @@ description: Comprehensive UI testing skill for Angular/React/Vue web applicatio
 whenToUse: When building, modifying, or verifying web UI features
 ---
 
-# UI Testing Skill
+# 🎯 UI Testing Skill
 
-A comprehensive skill for testing web UIs using Playwright. Produces detailed test reports with test cases and evidence screenshots.
+A comprehensive skill for testing web UIs using Playwright. Produces detailed test reports with evidence screenshots.
 
 ## Core Principles
 
 1. **Test BEFORE you claim done** - Never report completion without running tests
 2. **Screenshot evidence** - Every test pass/fail gets visual proof
 3. **Full workflow coverage** - Test complete user journeys, not just isolated components
+4. **Readable reports** - Use proper formatting with inline screenshots
+
+---
 
 ## Prerequisites
 
-Ensure these are installed in the project:
 ```bash
 npm install -D @playwright/test playwright
 npx playwright install chromium
 ```
 
+---
+
 ## Project Setup
 
-### 1. Playwright Config (`playwright.config.ts`)
+### Playwright Config (`playwright.config.ts`)
 
 ```typescript
 import { defineConfig } from '@playwright/test';
@@ -34,151 +38,181 @@ export default defineConfig({
   use: {
     headless: true,
     viewport: { width: 1280, height: 720 },
-    screenshot: 'only-on-failure',
-    video: 'retain-on-failure',
   },
   reporter: [
-    ['html', { outputFolder: 'playwright-report' }],
     ['json', { outputFile: 'test-results/results.json' }],
   ],
-  timeout: 30000,
 });
 ```
 
-### 2. Test File Structure
+### Folder Structure
 
 ```
-tests/
-└── e2e/
-    ├── pages/           # Page Object Models
-    │   ├── HomePage.ts
-    │   ├── CartPage.ts
-    │   └── CheckoutPage.ts
-    ├── specs/           # Test Specifications
-    │   ├── smoke.spec.ts
-    │   ├── cart.spec.ts
-    │   └── checkout.spec.ts
-    └── reports/         # Generated reports
+tests/e2e/
+├── specs/              # Your test files (*.spec.ts)
+├── reports/            # Generated screenshots
+│   ├── TC-001-pass.png
+│   └── TC-001-fail.png
+└── test-results/       # JSON results
 ```
 
-## Test Case Design
+---
 
-### Standard Test Template
+## Test Template with Screenshots
 
 ```typescript
-import { test, expect, Page } from '@playwright/test';
+import { test, expect } from '@playwright/test';
 
-// Test Case Template with Evidence Collection
-const testCases = [
-  {
-    id: 'TC-001',
-    title: 'User can add product to cart',
-    steps: [
-      'Navigate to home page',
-      'Click "Add to Cart" button on first product',
-      'Verify cart badge shows count of 1'
-    ],
-    expected: 'Cart badge displays "1"',
-    severity: 'critical' // critical, major, minor
-  },
-];
+test.describe('Feature E2E Tests', () => {
+  
+  // Run before each test
+  test.beforeEach(async ({ page }) => {
+    await page.goto('http://localhost:4200', { waitUntil: 'networkidle' });
+  });
 
-for (const tc of testCases) {
-  test(`${tc.id}: ${tc.title}`, async ({ page }) => {
-    // Setup: Navigate
-    await page.goto('http://localhost:4200');
-    await page.waitForLoadState('networkidle');
-
-    // Execute steps
-    for (const step of tc.steps) {
-      console.log(`Step: ${step}`);
-    }
-
-    // Assert
-    await expect(page.locator('.cart-badge')).toHaveText('1');
-
-    // Capture evidence
+  // Automatically capture screenshot after each test
+  test.afterEach(async ({ page }, testInfo) => {
+    const status = testInfo.status === 'passed' ? 'pass' : 'fail';
     await page.screenshot({ 
-      path: `tests/e2e/reports/${tc.id}-pass.png`,
+      path: `tests/e2e/reports/${testInfo.title.replace(/\s+/g, '-')}-${status}.png`,
       fullPage: true 
     });
   });
-}
+
+  test('TC-001: Feature works correctly', async ({ page }) => {
+    // Test steps...
+    await expect(page.locator('.element')).toBeVisible();
+  });
+
+  test('TC-002: Another feature works', async ({ page }) => {
+    // Test steps...
+  });
+});
 ```
+
+---
+
+## Running Tests
+
+```bash
+# Run all E2E tests
+npx playwright test
+
+# Run specific test file
+npx playwright test tests/e2e/shopping.spec.ts
+
+# View results
+npx playwright show-report
+```
+
+---
 
 ## Report Generation
 
-### Automated Test Report Script
+After tests complete, generate the report:
 
-Create `generate-report.ts`:
-
-```typescript
-import { promises as fs } from 'fs';
-import path from 'path';
-
-interface TestResult {
-  id: string;
-  title: string;
-  status: 'passed' | 'failed' | 'skipped';
-  duration: number;
-  error?: string;
-  screenshot?: string;
-}
-
-async function generateReport() {
-  const resultsPath = path.join(__dirname, '../../test-results/results.json');
-  const results = JSON.parse(await fs.readFile(resultsPath, 'utf-8'));
-
-  const report: string[] = [];
-  report.push('# UI Test Report');
-  report.push(`\nGenerated: ${new Date().toISOString()}\n`);
-  
-  // Summary
-  const passed = results.stats.expected;
-  const failed = results.stats.unexpected;
-  const total = passed + failed;
-  
-  report.push('## Summary');
-  report.push(`| Metric | Value |`);
-  report.push(`|--------|-------|`);
-  report.push(`| Total Tests | ${total} |`);
-  report.push(`| Passed | ${passed} |`);
-  report.push(`| Failed | ${failed} |`);
-  report.push(`| Pass Rate | ${((passed/total)*100).toFixed(1)}% |`);
-  report.push(`| Duration | ${(results.stats.duration/1000).toFixed(1)}s |`);
-  
-  // Test Cases Detail
-  report.push('\n## Test Cases');
-  
-  for (const test of results.tests) {
-    const status = test.ok ? '✅ PASS' : '❌ FAIL';
-    report.push(`\n### ${test.title}`);
-    report.push(`\n| Field | Value |`);
-    report.push(`|-------|-------|`);
-    report.push(`| Status | ${status} |`);
-    report.push(`| Duration | ${(test.duration/1000).toFixed(1)}s |`);
-    report.push(`| Error | ${test.errors?.[0]?.message || 'N/A' } |`);
-    
-    // Screenshot if failed
-    if (!test.ok) {
-      const screenshotPath = `tests/e2e/reports/${test.title.replace(/\s+/g, '-')}-fail.png`;
-      report.push(`| Screenshot | ![Failure](${screenshotPath}) |`);
-    }
-  }
-  
-  await fs.writeFile('TEST-REPORT.md', report.join('\n'));
-  console.log('Report generated: TEST-REPORT.md');
-}
-
-generateReport().catch(console.error);
+```bash
+node generate-report.mjs
 ```
 
-## Angular-Specific Testing
+This creates `TEST-REPORT.md` in this format:
 
-### Critical UI Checks for Angular
+```markdown
+# 🎯 UI Test Report
+
+**Project:** [Your Project Name]
+**Date:** YYYY-MM-DD
+**Environment:** http://localhost:4200
+
+---
+
+## 📊 Executive Summary
+
+| Metric | Value |
+|--------|-------|
+| Total Tests | 7 |
+| Passed | 7 ✅ |
+| Failed | 0 ❌ |
+| Pass Rate | 100% |
+| Duration | 15.4s |
+
+---
+
+## 🧪 Test Results
+
+| # | Test Case | Status | Duration | Evidence |
+|---|-----------|--------|----------|----------|
+| 1 | Homepage loads | ✅ PASS | 2.4s | [screenshot](screenshots/Homepage-loads-pass.png) |
+| 2 | Add to cart works | ✅ PASS | 2.1s | [screenshot](screenshots/Add-to-cart-pass.png) |
+| ... | ... | ... | ... | ... |
+
+---
+
+## ✅ Test Case Details
+
+### TC-001: Homepage loads
+- **Status:** ✅ PASS
+- **Duration:** 2.4s
+- **Verified:**
+  - Angular app bootstraps correctly
+  - Product catalog displays
+- **Evidence:** ![screenshot](screenshots/Homepage-loads-pass.png)
+
+---
+
+### TC-002: Add to cart works
+- **Status:** ✅ PASS  
+- **Duration:** 2.1s
+- **Verified:**
+  - Button clickable
+  - Cart updates
+- **Evidence:** ![screenshot](screenshots/Add-to-cart-pass.png)
+
+---
+
+## 🔧 Technical Details
+
+| Component | Technology |
+|-----------|-----------|
+| Framework | Angular 21 |
+| Testing | Playwright |
+| State | Angular Signals |
+
+---
+
+## 📁 Project Structure
+
+```
+project/
+├── src/
+│   └── app/
+├── tests/e2e/
+│   ├── specs/
+│   └── reports/          ← Screenshots
+└── playwright.config.ts
+```
+
+---
+
+## ✍️ Sign-off
+
+| Role | Name | Date |
+|------|------|------|
+| Developer | AI Agent | YYYY-MM-DD |
+
+---
+
+*Report generated by UI Testing Skill*
+```
+
+---
+
+## Angular-Specific Tests
+
+### Critical Checks for Angular
 
 ```typescript
-test('Angular component rendering', async ({ page }) => {
+test('TC-001: Angular bootstraps correctly', async ({ page }) => {
   await page.goto('http://localhost:4200');
   
   // Wait for Angular to bootstrap
@@ -186,54 +220,33 @@ test('Angular component rendering', async ({ page }) => {
     return document.querySelector('app-root')?.innerHTML !== '';
   });
   
-  // Verify products rendered
   const products = await page.locator('.product-card').count();
   expect(products).toBeGreaterThan(0);
-  
-  await page.screenshot({ 
-    path: 'tests/e2e/reports/angular-render-pass.png',
-    fullPage: true 
-  });
 });
 
-test('Button click handler works', async ({ page }) => {
+test('TC-002: Button click handler works', async ({ page }) => {
   await page.goto('http://localhost:4200');
-  await page.waitForLoadState('networkidle');
   
-  // Click add to cart
-  const addButton = page.locator('.product-card .btn-primary').first();
+  const addButton = page.locator('.btn-primary').first();
   await addButton.click();
   
-  // CRITICAL: Verify click actually did something
+  // CRITICAL: Verify click actually worked
   await expect(page.locator('.cart-badge')).toHaveText('1');
-  
-  await page.screenshot({ 
-    path: 'tests/e2e/reports/button-handler-pass.png',
-    fullPage: true 
-  });
 });
 
-test('Form validation blocks submission', async ({ page }) => {
+test('TC-003: Form validation blocks submission', async ({ page }) => {
   await page.goto('http://localhost:4200/checkout');
   
-  // Submit empty form - button should be disabled
-  const submitButton = page.locator('button[type="submit"]');
-  await expect(submitButton).toBeDisabled();
-  
-  await page.screenshot({ 
-    path: 'tests/e2e/reports/form-validation-pass.png',
-    fullPage: true 
-  });
+  // Button should be disabled when form empty
+  await expect(page.locator('button[type="submit"]')).toBeDisabled();
 });
 
-test('Complete purchase flow', async ({ page }) => {
+test('TC-004: Complete purchase flow', async ({ page }) => {
   // 1. Add item
-  await page.goto('http://localhost:4200');
   await page.locator('.product-card .btn-primary').first().click();
   
   // 2. Go to cart
   await page.locator('.cart-link').click();
-  await expect(page.locator('h1')).toContainText('Cart');
   
   // 3. Proceed to checkout
   await page.locator('.checkout-btn').click();
@@ -241,111 +254,54 @@ test('Complete purchase flow', async ({ page }) => {
   // 4. Fill form
   await page.fill('input[name="fullName"]', 'John Doe');
   await page.fill('input[name="email"]', 'john@example.com');
-  await page.fill('input[name="address1"]', '123 Main St');
-  await page.fill('input[name="city"]', 'HK');
-  await page.fill('input[name="postalCode"]', '12345');
-  await page.fill('input[name="cardNumber"]', '1234567812345678');
-  await page.fill('input[name="expiry"]', '12/28');
-  await page.fill('input[name="cvv"]', '123');
+  // ... fill other fields
   
   // 5. Submit
   await page.locator('button[type="submit"]').click();
   
   // 6. Verify confirmation
   await expect(page).toHaveURL(/\/order-confirmation/);
-  await expect(page.locator('.order-id')).toBeVisible();
-  
-  await page.screenshot({ 
-    path: 'tests/e2e/reports/purchase-flow-pass.png',
-    fullPage: true 
-  });
 });
 ```
 
-## Running Tests
-
-### Standard Commands
-
-```bash
-# Run all E2E tests
-npx playwright test
-
-# Run specific test file
-npx playwright test tests/e2e/cart.spec.ts
-
-# Run with UI (headed mode)
-npx playwright test --headed
-
-# Run with debug
-npx playwright test --debug
-
-# Generate report
-npx playwright show-report
-```
-
-### CI/CD Integration
-
-```bash
-# In CI pipeline
-npm ci
-npx playwright install --with-deps
-npx playwright test --reporter=html,json
-```
+---
 
 ## Common Issues & Fixes
 
-| Issue | Cause | Fix |
-|-------|-------|-----|
-| Angular `app-root` is empty | Missing zone.js | Add `import 'zone.js'` to main.ts |
-| Button click timeout | Handler not wired | Verify Angular binding syntax |
-| Form stays enabled | Validation not working | Check form validators |
-| Products not showing | Service not injected | Verify providers in appConfig |
-| Navigation fails | Router not configured | Check app.routes.ts |
+| Issue | Fix |
+|-------|-----|
+| Angular `app-root` empty | Add `import 'zone.js'` to main.ts |
+| Button click timeout | Verify Angular binding syntax |
+| Form validation not working | Check form validators |
+| Products not showing | Verify service injection |
+| Navigation fails | Check app.routes.ts |
 
-## Test Report Format
+---
 
-Final report should include:
+## Workflow
 
-```markdown
-# UI Test Report - [Project Name]
-Date: YYYY-MM-DD
-Tester: [Agent Name]
-
-## Executive Summary
-- Total Tests: X
-- Passed: X (X%)
-- Failed: X
-- Duration: Xs
-
-## Test Results
-
-| ID | Test Case | Status | Duration | Screenshot |
-|----|-----------|--------|----------|------------|
-| TC-001 | Add to Cart | ✅ PASS | 1.2s | [screenshot] |
-| TC-002 | Checkout Flow | ✅ PASS | 3.5s | [screenshot] |
-| TC-003 | Form Validation | ✅ PASS | 0.8s | [screenshot] |
-
-## Defects Found
-
-| ID | Severity | Description | Screenshot |
-|----|----------|-------------|------------|
-| DEF-001 | Critical | Button click does not add item to cart | [screenshot] |
-
-## Sign-off
-
-Tested by: AI Agent
-Date: YYYY-MM-DD
-Environment: [URL]
+```
+1. Write tests following template
+2. Run: npx playwright test
+3. Generate report: node generate-report.mjs
+4. Review TEST-REPORT.md
+5. Fix any failures
+6. Retest until all pass
 ```
 
-## Skill Usage
+**Remember: A UI feature is NOT complete until tests pass with visual evidence!**
 
-To use this skill:
+---
 
-1. **Before reporting UI completion**, invoke this skill
-2. **Run the test suite** following the templates
-3. **Generate the report** with screenshots
-4. **Report any failures** as defects with evidence
-5. **Fix and retest** until all tests pass
+## Files in This Skill
 
-Remember: A UI feature is NOT complete until tests pass with visual evidence!
+| File | Purpose |
+|------|---------|
+| `SKILL.md` | This documentation |
+| `generate-report.mjs` | Report generator script |
+| `example.spec.ts` | Test template with screenshots |
+| `TEST-REPORT.md` | Sample report output |
+
+---
+
+*Use this skill to ensure UI quality through automated testing!*
